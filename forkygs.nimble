@@ -4,5 +4,4 @@ description   = "Modular multithreading HTTP/1.1 + WebSocket upstream server fra
 license       = "MIT"
 
 skipDirs = @["docs", "examples"]
-
 requires "nim >= 2.0.0"
