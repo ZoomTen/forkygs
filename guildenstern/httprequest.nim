@@ -213,7 +213,7 @@ proc readHeader*(): bool {.gcsafe, raises:[].} =
     if server.contenttype == NoBody: return true
     return getContentLength()
   parseHeaders()
-  if server.contenttype != NoBody:
+  if http.headers.hasKey("content-length"):
     try:
       if http.headers["content-length"].len > 0:
         http.contentlength = http.headers["content-length"].parseInt()
