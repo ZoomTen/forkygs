@@ -50,11 +50,10 @@ type
   Sha1Digest* = array[0 .. Sha1DigestSize - 1, uint8]
   SecureHash* = distinct Sha1Digest
 
-type
-  Sha1State* = object
-    count: int
-    state: array[5, uint32]
-    buf:   array[64, byte]
+type Sha1State* = object
+  count: int
+  state: array[5, uint32]
+  buf: array[64, byte]
 
 # This implementation of the SHA-1 algorithm was ported from the Chromium OS one
 # with minor modifications that should not affect its functionality.
@@ -71,9 +70,14 @@ proc newSha1State*(): Sha1State =
   result.state[3] = 0x10325476'u32
   result.state[4] = 0xC3D2E1F0'u32
 
-template ror27(val: uint32): uint32 = (val shr 27) or (val shl  5)
-template ror2 (val: uint32): uint32 = (val shr  2) or (val shl 30)
-template ror31(val: uint32): uint32 = (val shr 31) or (val shl  1)
+template ror27(val: uint32): uint32 =
+  (val shr 27) or (val shl 5)
+
+template ror2(val: uint32): uint32 =
+  (val shr 2) or (val shl 30)
+
+template ror31(val: uint32): uint32 =
+  (val shr 31) or (val shl 1)
 
 proc transform(ctx: var Sha1State) =
   var w: array[80, uint32]
@@ -101,7 +105,7 @@ proc transform(ctx: var Sha1State) =
   shaF1(a, b, c, d, e, t + 0) # 16th one, t == 15
 
   template shaF11(a, b, c, d, e, t: untyped) =
-    w[t] = ror31(w[t-3] xor w[t-8] xor w[t-14] xor w[t-16])
+    w[t] = ror31(w[t - 3] xor w[t - 8] xor w[t - 14] xor w[t - 16])
     e += ror27(a) + w[t] + (d xor (b and (c xor d))) + 0x5A827999'u32
     b = ror2(b)
 
@@ -111,7 +115,7 @@ proc transform(ctx: var Sha1State) =
   shaF11(b, c, d, e, a, t + 4)
 
   template shaF2(a, b, c, d, e, t: untyped) =
-    w[t] = ror31(w[t-3] xor w[t-8] xor w[t-14] xor w[t-16])
+    w[t] = ror31(w[t - 3] xor w[t - 8] xor w[t - 14] xor w[t - 16])
     e += ror27(a) + w[t] + (b xor c xor d) + 0x6ED9EBA1'u32
     b = ror2(b)
 
@@ -125,7 +129,7 @@ proc transform(ctx: var Sha1State) =
     t += 5
 
   template shaF3(a, b, c, d, e, t: untyped) =
-    w[t] = ror31(w[t-3] xor w[t-8] xor w[t-14] xor w[t-16])
+    w[t] = ror31(w[t - 3] xor w[t - 8] xor w[t - 14] xor w[t - 16])
     e += ror27(a) + w[t] + ((b and c) or (d and (b or c))) + 0x8F1BBCDC'u32
     b = ror2(b)
 
@@ -138,7 +142,7 @@ proc transform(ctx: var Sha1State) =
     t += 5
 
   template shaF4(a, b, c, d, e, t: untyped) =
-    w[t] = ror31(w[t-3] xor w[t-8] xor w[t-14] xor w[t-16])
+    w[t] = ror31(w[t - 3] xor w[t - 8] xor w[t - 14] xor w[t - 16])
     e += ror27(a) + w[t] + (b xor c xor d) + 0xCA62C1D6'u32
     b = ror2(b)
 
@@ -276,7 +280,7 @@ proc parseSecureHash*(hash: string): SecureHash =
     assert secureHash == parseSecureHash(hashStr)
 
   for i in 0 ..< Sha1DigestSize:
-    Sha1Digest(result)[i] = uint8(parseHexInt(hash[i*2] & hash[i*2 + 1]))
+    Sha1Digest(result)[i] = uint8(parseHexInt(hash[i * 2] & hash[i * 2 + 1]))
 
 proc `==`*(a, b: SecureHash): bool =
   ## Checks if two `SecureHash` values are identical.

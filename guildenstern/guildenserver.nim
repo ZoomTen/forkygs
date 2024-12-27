@@ -34,34 +34,46 @@ const GuildenSternVersion* = "7.3.0"
 ## 
 
 from std/selectors import newSelectEvent, trigger
-from std/posix import SocketHandle, INVALID_SOCKET, SIGINT, getpid, SIGTERM, onSignal, `==`
+from std/posix import
+  SocketHandle, INVALID_SOCKET, SIGINT, getpid, SIGTERM, onSignal, `==`
 from std/net import Socket, newSocket
 from std/nativesockets import close
 from std/strutils import replace
 export SocketHandle, INVALID_SOCKET, posix.`==`
 
-static: doAssert(compileOption("threads"))
+static:
+  doAssert(compileOption("threads"))
 
-
-const LogColors = ["\e[90m", "\e[36m", "\e[32m", "\e[34m", "\e[33m", "\e[31m", "\e[35m", "\e[35m"]
+const LogColors =
+  ["\e[90m", "\e[36m", "\e[32m", "\e[34m", "\e[33m", "\e[31m", "\e[35m", "\e[35m"]
 
 type
-  LogLevel* = enum TRACE, DEBUG, INFO, NOTICE, WARN, ERROR, FATAL, NONE
+  LogLevel* = enum
+    TRACE
+    DEBUG
+    INFO
+    NOTICE
+    WARN
+    ERROR
+    FATAL
+    NONE
 
   SocketCloseCause* = enum
     ## Parameter in close callbacks.
     Excepted = -1000 ## A Nim exception happened
     CloseCalled ## Use this, when the server (your code) closes a socket
-    AlreadyClosed  ## Another thread has closed the socket
+    AlreadyClosed ## Another thread has closed the socket
     ClosedbyClient ## Client closed the connection
     ConnectionLost ## TCP/IP connection was dropped
     TimedOut ## Client did not send/receive all expected data
     ProtocolViolated ## Client was sending garbage
     NetErrored ## Some operating system level error happened
-    SecurityThreatened ## Use this, when you decide to close socket for security reasosns 
+    SecurityThreatened
+      ## Use this, when you decide to close socket for security reasosns 
     DontClose ## Internal flag
 
-  LogCallback* = proc(loglevel: LogLevel, message: string) {.gcsafe, nimcall, raises: [].}
+  LogCallback* =
+    proc(loglevel: LogLevel, message: string) {.gcsafe, nimcall, raises: [].}
 
 type
   SocketData* = object
@@ -74,13 +86,24 @@ type
     flags*: int
     customdata*: pointer
 
-  ThreadInitializerCallback* = proc(server: GuildenServer){.nimcall, gcsafe, raises: [].}
-  HandlerCallback* = proc(socketdata: ptr SocketData){.nimcall, gcsafe, raises: [].}
-  SuspendCallback* = proc(server: GuildenServer, sleepmillisecs: int){.nimcall, gcsafe, raises: [].}
-  CloseSocketCallback* = proc(socketdata: ptr SocketData, cause: SocketCloseCause, msg: string){.gcsafe, nimcall, raises: [].}
-  CloseOtherSocketCallback* = proc(server: GuildenServer, socket: SocketHandle, cause: SocketCloseCause, msg: string = ""){.gcsafe, nimcall, raises: [].}
-  OnCloseSocketCallback* = proc(socketdata: ptr SocketData, cause: SocketCloseCause, msg: string){.gcsafe, nimcall, raises: [].} ## The `msg` parameter may contain furher info about the cause. For example, in case of websocket ClosedByClient, `msg` contains the status code. 
-
+  ThreadInitializerCallback* =
+    proc(server: GuildenServer) {.nimcall, gcsafe, raises: [].}
+  HandlerCallback* = proc(socketdata: ptr SocketData) {.nimcall, gcsafe, raises: [].}
+  SuspendCallback* =
+    proc(server: GuildenServer, sleepmillisecs: int) {.nimcall, gcsafe, raises: [].}
+  CloseSocketCallback* = proc(
+    socketdata: ptr SocketData, cause: SocketCloseCause, msg: string
+  ) {.gcsafe, nimcall, raises: [].}
+  CloseOtherSocketCallback* = proc(
+    server: GuildenServer,
+    socket: SocketHandle,
+    cause: SocketCloseCause,
+    msg: string = "",
+  ) {.gcsafe, nimcall, raises: [].}
+  OnCloseSocketCallback* = proc(
+    socketdata: ptr SocketData, cause: SocketCloseCause, msg: string
+  ) {.gcsafe, nimcall, raises: [].}
+    ## The `msg` parameter may contain furher info about the cause. For example, in case of websocket ClosedByClient, `msg` contains the status code. 
 
   GuildenServer* {.inheritable.} = ref object
     port*: uint16
@@ -98,30 +121,33 @@ type
     onCloseSocketCallback*: OnCloseSocketCallback
 
   SocketContext* {.inheritable.} = ref object
-    socketdata*: ptr SocketData  
+    socketdata*: ptr SocketData
 
 var
-  shuttingdown* = false ## Global variable that all code is expected to observe and abide to.
+  shuttingdown* = false
+    ## Global variable that all code is expected to observe and abide to.
   socketcontext* {.threadvar.}: SocketContext
   shutdownevent* = newSelectEvent()
   nextid: int
 
-
-proc `$`*(x: SocketHandle): string {.inline.} = $(x.cint)
+proc `$`*(x: SocketHandle): string {.inline.} =
+  $(x.cint)
 
 proc shutdown*() =
   ## Sets [shuttingdown] to true and signals dispatcher loops to cease operation.
   {.gcsafe.}:
     shuttingdown = true
-    try: trigger(shutdownevent)
-    except: discard
- 
- 
-{.hint[XDeclaredButNotUsed]:off.}
-onSignal(SIGTERM): shutdown()
-onSignal(SIGINT): shutdown()
-{.hint[XDeclaredButNotUsed]:on.}
+    try:
+      trigger(shutdownevent)
+    except:
+      discard
 
+{.hint[XDeclaredButNotUsed]: off.}
+onSignal(SIGTERM):
+  shutdown()
+onSignal(SIGINT):
+  shutdown()
+{.hint[XDeclaredButNotUsed]: on.}
 
 template log*(theserver: GuildenServer, level: LogLevel, message: string) =
   ## Calls logCallback, if it set. By default, the callback is set to echo the message,
@@ -130,41 +156,53 @@ template log*(theserver: GuildenServer, level: LogLevel, message: string) =
     if likely(theserver.logCallback != nil):
       theserver.logCallback(level, message)
 
-
 proc initialize*(server: GuildenServer, loglevel: LogLevel) =
   server.id = nextid
   nextid += 1
   server.loglevel = loglevel
-  if server.logCallback == nil: server.logCallback = proc(loglevel: LogLevel, message: string) = (
-    block:
-      if unlikely(getCurrentException() != nil):
-        echo LogColors[loglevel.int], loglevel, "\e[0m ", message, ": ", getCurrentExceptionMsg()
-      elif message.len < 200: echo LogColors[loglevel.int], loglevel, "\e[0m ", message
-      else:
-        let excerpt = message[0 .. 49] & " ... (" & $(message.len - 100) & " chars omitted) ... " & message[(message.len - 50) .. (message.len - 1)]
-        echo LogColors[loglevel.int], loglevel, "\e[0m ", excerpt.replace("\n", "\\n ")
-  )
-
+  if server.logCallback == nil:
+    server.logCallback = proc(loglevel: LogLevel, message: string) =
+      (
+        block:
+          if unlikely(getCurrentException() != nil):
+            echo LogColors[loglevel.int],
+              loglevel, "\e[0m ", message, ": ", getCurrentExceptionMsg()
+          elif message.len < 200:
+            echo LogColors[loglevel.int], loglevel, "\e[0m ", message
+          else:
+            let excerpt =
+              message[0 .. 49] & " ... (" & $(message.len - 100) & " chars omitted) ... " &
+              message[(message.len - 50) .. (message.len - 1)]
+            echo LogColors[loglevel.int],
+              loglevel, "\e[0m ", excerpt.replace("\n", "\\n ")
+      )
 
 template initializeThread*(server: ptr GuildenServer) =
-  {.gcsafe.}: server.internalThreadInitializationCallback(server[])
-  
+  {.gcsafe.}:
+    server.internalThreadInitializationCallback(server[])
 
 template handleRead*(socketdata: ptr SocketData) =
-  {.gcsafe.}: socketdata.server.handlerCallback(socketdata) 
-
+  {.gcsafe.}:
+    socketdata.server.handlerCallback(socketdata)
 
 proc closeSocket*(cause = CloseCalled, msg = "") {.gcsafe, nimcall, raises: [].} =
   ## Call this to close a socket yourself.
-  socketcontext.socketdata.server.closeSocketCallback(socketcontext.socketdata, cause, msg)
+  socketcontext.socketdata.server.closeSocketCallback(
+    socketcontext.socketdata, cause, msg
+  )
 
-
-proc closeOtherSocket*(server: GuildenServer, socket: posix.SocketHandle, cause: SocketCloseCause = CloseCalled, msg: string = "") {.gcsafe, nimcall, raises: [].} =
+proc closeOtherSocket*(
+    server: GuildenServer,
+    socket: posix.SocketHandle,
+    cause: SocketCloseCause = CloseCalled,
+    msg: string = "",
+) {.gcsafe, nimcall, raises: [].} =
   ## Call this to close an open socket that is not the socket currently being served.
   server.closeOtherSocketCallback(server, socket, cause, msg)
-
 
 proc suspend*(sleepmillisecs: int) {.inline.} =
   ## Instead of os.sleep, use this. This informs a dispatcher that your thread is waiting for something and therefore
   ## another thread should be allowed to run.
-  socketcontext.socketdata.server.suspendCallback(socketcontext.socketdata.server, sleepmillisecs) 
+  socketcontext.socketdata.server.suspendCallback(
+    socketcontext.socketdata.server, sleepmillisecs
+  )
