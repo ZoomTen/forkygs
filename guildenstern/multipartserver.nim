@@ -68,7 +68,7 @@ proc processPart(c: char): PartState =
       return Completed
     return BodyChunk
 
-iterator processChunk(chunk: string): (PartState, string) =
+iterator processChunk(chunk: string): (PartState, string) {.closure.} =
   for c in chunk:
     if multipart.inheader:
       let headerstate = processHeader(c)
@@ -139,7 +139,7 @@ proc parseHeader(header: string) =
   if current[0].len > 1 and not current[0].startsWith("--"):
     http.headers[current[0]] = current[1]
 
-iterator receiveParts*(parsepartheaders: bool = true): (PartState, string) =
+iterator receiveParts*(parsepartheaders: bool = true): (PartState, string) {.closure.} =
   ## Iterator for streaming in multipart/formdata
   multipart.headerlen = 0
   multipart.partlen = 0

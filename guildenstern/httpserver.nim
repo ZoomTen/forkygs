@@ -364,7 +364,7 @@ proc readHeader*(): bool {.gcsafe, raises: [].} =
       return false
   true
 
-iterator receiveStream*(): (SocketState, string) {.gcsafe, raises: [].} =
+iterator receiveStream*(): (SocketState, string) {.closure, gcsafe, raises: [].} =
   ## Receives a http request in chunks, yielding the state of operation and a possibly received new chuck on every iteration.
   ## With this, you can receive data incrementally without worries about main memory usage.
   ## See examples/streamingposttest.nim for a concrete working example of how to use this iterator.
