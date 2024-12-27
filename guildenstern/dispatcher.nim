@@ -311,7 +311,7 @@ proc dispatchloop(
   var portserver: Socket
   try:
     portserver = newSocket()
-    portserver.bindAddr(net.Port(server.port), "")
+    portserver.bindAddr(net.Port(server.port), server.boundAddr)
     when not defined(nimdoc):
       discard setsockopt(
         portserver.getFd(),
@@ -370,6 +370,7 @@ proc start*(
     port: int,
     threadpoolsize: uint = 0,
     maxactivethreadcount: uint = 0,
+    address: string = "",
 ) =
   ## Starts the server.thread loop, which then listens the given port for read requests until shuttingdown == true.
   ## By default maxactivethreadcount will be set to processor core count, and threadpoolsize twice that.
@@ -389,6 +390,7 @@ proc start*(
     workerdatas[server.id].threadpoolsize =
       workerdatas[server.id].maxactivethreadcount * 2
   server.port = port.uint16
+  server.boundAddr = address
   server.suspendCallback = suspend
   server.closeSocketCallback = closeSocketImpl
   server.closeOtherSocketCallback = closeOtherSocketImpl

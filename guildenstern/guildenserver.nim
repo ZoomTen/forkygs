@@ -107,6 +107,7 @@ type
 
   GuildenServer* {.inheritable.} = ref object
     port*: uint16
+    boundAddr*: string
     thread*: Thread[ptr GuildenServer]
     id*: int
     logCallback*: LogCallback
