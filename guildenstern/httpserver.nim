@@ -598,11 +598,6 @@ proc reply*(
     if code == Http101 or code == Http304:
       return writeToSocket(unsafeAddr shortdivider, shortdivider.len, lastflags)
 
-    if length < 1:
-      if writeToSocket(unsafeAddr zerocontent, zerocontent.len) != Complete:
-        return Fail
-      return writeToSocket(unsafeAddr longdivider, longdivider.len, lastflags)
-
     if writeToSocket(unsafeAddr contentlen, contentlen.len) != Complete:
       return Fail
     if writeToSocket(unsafeAddr lengthstring, lengthstring.len) != Complete:
