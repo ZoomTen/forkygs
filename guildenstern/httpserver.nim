@@ -507,12 +507,14 @@ proc writeToSocket(
       continue
     result = checkSocketState(ret)
     if result == TryAgain:
+      #[
       suspend(backoff)
       totalbackoff += backoff
       backoff *= 2
       if totalbackoff > server.sockettimeoutms:
         closeSocket(TimedOut, "didn't write to socket")
         return Fail
+      ]#
       continue
     else:
       return result
