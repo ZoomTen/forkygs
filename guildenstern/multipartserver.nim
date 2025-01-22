@@ -145,7 +145,7 @@ iterator receiveParts*(parsepartheaders: bool = true): (PartState, string) {.clo
   multipart.partlen = 0
   multipart.inheader = true
   var failed = false
-  var backoff = 4
+  var backoff = initialbackoff
   var totalbackoff = 0
 
   var originalheaderfields = newSeq[string]()
@@ -157,7 +157,7 @@ iterator receiveParts*(parsepartheaders: bool = true): (PartState, string) {.clo
   for (state, chunk) in receiveStream():
     case state
     of TryAgain:
-      suspend(backoff)
+      server.suspend(backoff)
       totalbackoff += backoff
       if totalbackoff > server.sockettimeoutms:
         closeSocket(TimedOut, "didn't stream all contents from socket")
@@ -217,12 +217,8 @@ proc handleMultipartInitialization(gserver: GuildenServer) =
   multipart.headercache = newString(HttpServer(gserver).maxheaderlength + 1)
   multipart.partcache = newString(HttpServer(gserver).bufferlength + 1)
 
-proc handleMultipartRequest(data: ptr SocketData) {.gcsafe, nimcall, raises: [].} =
-  let socketdata = data[]
-  let socketint = socketdata.socket.int
-  if unlikely(socketint == -1):
-    return
-  prepareHttpContext(addr socketdata)
+proc handleMultipartRequest() {.gcsafe, nimcall, raises: [].} =
+  prepareHttpContext()
   if not readHeader():
     return
   if not parseRequestLine():
@@ -232,7 +228,7 @@ proc handleMultipartRequest(data: ptr SocketData) {.gcsafe, nimcall, raises: [].
     closeSocket(
       ProtocolViolated,
       "Multipart request with wrong content-type (" & contenttype &
-        ") received from socket " & $socketint,
+        ") received from socket " & $thesocket,
     )
     return
   multipart.boundary = "--" & contenttype[30 .. ^1]
@@ -242,7 +238,7 @@ proc handleMultipartRequest(data: ptr SocketData) {.gcsafe, nimcall, raises: [].
   server.log(
     DEBUG,
     "Started multipart streaming with chunk of length " & $http.requestlen &
-      " from socket " & $socketint,
+      " from socket " & $thesocket,
   )
   {.gcsafe.}:
     server.requestCallback()
