@@ -157,6 +157,7 @@ iterator receiveParts*(parsepartheaders: bool = true): (PartState, string) {.clo
   for (state, chunk) in receiveStream():
     case state
     of TryAgain:
+      #[
       server.suspend(backoff)
       totalbackoff += backoff
       if totalbackoff > server.sockettimeoutms:
@@ -164,6 +165,7 @@ iterator receiveParts*(parsepartheaders: bool = true): (PartState, string) {.clo
         yield (Failed, "TimedOut")
         break
       backoff *= 2
+      ]#
       continue
     of Fail:
       yield (Failed, "socket failure")
