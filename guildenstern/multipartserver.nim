@@ -19,7 +19,7 @@ type
     Failed ## See contents of chunk for potential additional info
     Completed ## That's it
 
-  MultipartContext = ref object of HttpContext
+  MultipartContext* = ref object of HttpContext
     boundary: string
     partcache: string
     partlen: int
@@ -213,8 +213,9 @@ proc parseContentDisposition*(): (string, string) {.raises: [].} =
     return
   result[1] = value[filenamestart .. value.len - 2]
 
-proc handleMultipartInitialization(gserver: GuildenServer) =
-  socketcontext = new MultipartContext
+proc handleMultipartInitialization*(gserver: GuildenServer) =
+  if socketcontext.isNil:
+    socketcontext = new MultipartContext
   handleHttpThreadInitialization(gserver)
   multipart.headercache = newString(HttpServer(gserver).maxheaderlength + 1)
   multipart.partcache = newString(HttpServer(gserver).bufferlength + 1)
