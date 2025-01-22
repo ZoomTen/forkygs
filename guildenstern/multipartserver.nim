@@ -261,3 +261,15 @@ proc newMultipartServer*(
   result.initHttpServer(loglevel, true, Streaming, fields)
   result.handlerCallback = handleMultipartRequest
   result.requestCallback = onrequestcallback
+
+proc isMultipartForm*(): bool = # forkyGS
+  ## To be used with an HTTP server; detects whether or not the request
+  ## is of a multipart form data.
+  const
+    multipartSignifier = "multipart/form-data; boundary="
+    multipartSignifierLen = len(multipartSignifier)
+  let ctype = http().headers.getOrDefault("content-type")
+  if ctype.startsWith(multipartSignifier):
+    multipart.boundary = "--" & ctype[multipartSignifierLen .. ^1]
+    return true
+  return false
