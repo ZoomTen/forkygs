@@ -187,7 +187,7 @@ proc createSelector(server: GuildenServer): bool =
 
   try:
     servers[server.id].serversocket = newSocket()
-    servers[server.id].serversocket.bindAddr(net.Port(server.port), "")
+    servers[server.id].serversocket.bindAddr(net.Port(server.port), server.boundAddr)
     when not defined(nimdoc):
       discard setsockopt(
         servers[server.id].serversocket.getFd(),
@@ -325,7 +325,9 @@ proc listeningLoop(server: GuildenServer) {.thread, gcsafe, nimcall, raises: [].
       server.log(DEBUG, "threads stopped.\n")
     sleep(200) # wait for OS
 
-proc start*(server: GuildenServer, port: int, threadpoolsize: uint = 0): bool =
+proc start*(
+    server: GuildenServer, port: int, threadpoolsize: uint = 0, address: string = ""
+): bool =
   ## Starts the server.thread loop, which then listens the given port for read requests until shuttingdown == true.
   ## Threadpoolsize means number of worker threads, but the name is kept for compatibility with the defautl dispatacher.
   ## By default threadpoolsize will be set to max(8, 2 * countProcessors()).
@@ -340,6 +342,7 @@ proc start*(server: GuildenServer, port: int, threadpoolsize: uint = 0): bool =
   if servers[server.id].threadpoolsize == 0:
     servers[server.id].threadpoolsize = max(8, 2 * countProcessors())
   server.port = port.uint16
+  server.boundAddr = address
   server.suspendCallback = suspend
   server.closeSocketCallback = closeSocketImpl
   server.getFlagsCallback = getFlagsImpl
