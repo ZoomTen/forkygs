@@ -73,7 +73,12 @@ proc closeSocketImpl(
     let fakeClient = guildenserver.SocketData(server: server, socket: socket)
     server.deprecatedOnclosesocketcallback(addr fakeClient, cause, msg)
   {.gcsafe.}:
-    if servers[server.id].clientselector.contains(socket):
+    if (
+      when defined(nimdoc):
+        true
+      else:
+        servers[server.id].clientselector.contains(socket)
+    ):
       try:
         servers[server.id].clientselector.unregister(socket.int)
         discard posix.close(socket)
@@ -234,8 +239,12 @@ proc listeningLoop(server: GuildenServer) {.thread, gcsafe, nimcall, raises: [].
     server.log(
       INFO,
       "epolldispatcher " & $server.id & " now listening at port " & $server.port &
-        " with socket " & $servers[server.id].serversocket.getFd() & " using " &
-        $servers[server.id].threadpoolsize & " threads",
+        " with socket " & (
+        when defined(nimdoc):
+          ""
+        else:
+          $servers[server.id].serversocket.getFd()
+      ) & " using " & $servers[server.id].threadpoolsize & " threads",
     )
   server.started = true
   while true:
@@ -297,7 +306,12 @@ proc listeningLoop(server: GuildenServer) {.thread, gcsafe, nimcall, raises: [].
     except:
       server.log(
         ERROR,
-        "could not close serversocket " & $servers[server.id].serversocket.getFd(),
+        "could not close serversocket " & (
+          when defined(nimdoc):
+            ""
+          else:
+            $servers[server.id].serversocket.getFd()
+        ),
       )
     let waitingtime = 10
       # 10 seconds, TODO: make this configurable / larger than socket timeout?
