@@ -417,6 +417,10 @@ iterator receiveStream*(): (SocketState, string) {.closure, gcsafe, raises: [].}
               http.bodystart + http.contentreceived
           let ret: int64 =
             recv(thesocket, addr http.request[position], recvsize, MSG_DONTWAIT)
+          if ret == 0:
+            closeSocket(ClosedbyClient, "client interrupted")
+            yield (Fail, "")
+            break
           let state = checkSocketState(ret)
           if ret > 0:
             http.contentreceived += ret
