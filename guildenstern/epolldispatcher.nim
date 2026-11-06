@@ -25,6 +25,7 @@ type
     flags: int
     customdata: pointer
     processing: Atomic[bool]
+    hungup: Atomic[bool]
 
   Server = object
     serversocket: Socket
@@ -87,6 +88,15 @@ proc closeSocketImpl(
 
 {.warning[Deprecated]: on.}
 
+proc isheld(server: GuildenServer, socket: SocketHandle, client: Client): bool =
+  ## False if the socket was closed (and maybe its fd number reused) since `client` got it.
+  {.gcsafe.}:
+    when defined(nimdoc):
+      return true
+    else:
+      return
+        client == getSafelyData(emptyClient, servers[server.id].clientselector, socket.int)
+
 proc clientThread(server: GuildenServer) {.thread.} =
   var
     event: ReadyKey
@@ -106,12 +116,20 @@ proc clientThread(server: GuildenServer) {.thread.} =
         if unlikely(Event.User in event.events):
           break
         if unlikely(Event.Error in event.events):
-          closeSocketImpl(
-            server,
-            SocketHandle(event.fd),
-            NetErrored,
-            "socket " & $event.fd & ": error " & $event.errorCode,
-          )
+          # the fd number gets recycled by the next accept() so
+          # don't close it here just yet
+          let c =
+            getSafelyData(emptyClient, servers[server.id].clientselector, event.fd)
+
+          if c != emptyClient:
+            store(c.hungup, true)
+            if not exchange(c.processing, true):
+              closeSocketImpl(
+                server,
+                SocketHandle(event.fd),
+                NetErrored,
+                "socket " & $event.fd & ": error " & $event.errorCode,
+              )
           continue
         socket = SocketHandle(event.fd)
         if unlikely(socket.int in [0, INVALID_SOCKET.int]):
@@ -139,6 +157,10 @@ proc clientThread(server: GuildenServer) {.thread.} =
       handleRead(server, socket, client.customdata)
       if unlikely(shuttingdown):
         break
+      if not isheld(server, socket, client):
+        # handler might have closed the socket, but the FD gets reused by
+        # some other connection
+        break
       let ret = recv(socket, addr probebuffer[0], 1, MSG_PEEK or MSG_DONTWAIT)
       if ret < 0:
         let state = osLastError().cint
@@ -154,6 +176,11 @@ proc clientThread(server: GuildenServer) {.thread.} =
         continue
 
     store(client.processing, false)
+    # a hangup that came in while we were busy was left for us to handle
+    if load(client.hungup) and not exchange(client.processing, true):
+      # (unless the handler already closed it, in which case the fd isn't ours)
+      if isheld(server, socket, client):
+        closeSocketImpl(server, socket, NetErrored, "socket " & $socket & ": hung up")
     server.log(TRACE, "handleRead finished for socket " & $socket)
 
   if not isNil(server.threadFinalizerCallback):
